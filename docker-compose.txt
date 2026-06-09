@@ -1,0 +1,114 @@
+
+# Version de Docker Compose utilisée (définit la compatibilité des fonctionnalités)
+version: "3.9"
+services:
+  user-service:
+    # Build du microservice user
+    build: ./user-service
+    # Nom du conteneur
+    container_name: user-service
+    # Expose le port du service (optionnel en prod, utile en dev)
+    ports:
+      - "3001:3001"
+    # Dépendances nécessaires pour fonctionner
+    depends_on:
+      - user-db       # base de données users
+      - rabbitmq      # broker de messages
+    # Variables d'environnement du service user
+    environment:
+      MONGO_URI: mongodb://user-db:27017/usersdb   # connexion à sa propre base
+      JWT_SECRET: secretkey                         # clé pour authentification JWT
+  product-service:
+    # Build du service product
+    build: ./product-service
+    # Nom du conteneur
+    container_name: product-service
+    # Port exposé du service product
+    ports:
+      - "3002:3002"
+    # Dépendances obligatoires
+    depends_on:
+      - product-db
+      - rabbitmq
+    # Configuration du service
+    environment:
+      MONGO_URI: mongodb://product-db:27017/productsdb
+  order-service:
+    # Build du service order
+    build: ./order-service
+    # Nom du conteneur
+    container_name: order-service
+    # Port exposé du service order
+    ports:
+      - "3003:3003"
+    # Dépendances obligatoires
+    depends_on:
+      - order-db
+      - rabbitmq
+    # Configuration du service order
+    environment:
+      MONGO_URI: mongodb://order-db:27017/ordersdb
+  user-db:
+    # Image officielle MongoDB
+    image: mongo:6
+    # Nom du conteneur
+    container_name: user-db
+    # Port exposé (27018 côté machine)
+    ports:
+      - "27018:27017"
+    # Volume pour persister les données même si container supprimé
+    volumes:
+      - user_data:/data/db
+  product-db:
+    # Image MongoDB officielle
+    image: mongo:6
+    # Nom du conteneur
+    container_name: product-db
+    # Port externe différent pour éviter conflit
+    ports:
+      - "27019:27017"
+    # Stockage persistant
+    volumes:
+      - product_data:/data/db
+  order-db:
+    # Image MongoDB officielle
+    image: mongo:6
+    # Nom du conteneur
+    container_name: order-db
+    # Port externe unique
+    ports:
+      - "27020:27017"
+    # Volume persistant
+    volumes:
+      - order_data:/data/db
+  rabbitmq:
+    # Image officielle RabbitMQ avec interface admin
+    image: rabbitmq:3-management
+    # Nom du conteneur
+    container_name: rabbitmq
+    # Ports exposés
+    ports:
+      - "5672:5672"     # communication interne (services ↔ RabbitMQ)
+      - "15672:15672"   # interface web (dashboard)
+    # Identifiants par défaut
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+  consumer:
+
+    # Build du consumer
+    build: ./consumer
+    # Nom du conteneur
+    container_name: consumer
+    # Dépend de RabbitMQ et product-db
+    depends_on:
+      - rabbitmq
+      - product-db
+    # Connexion à la base product pour modifier le stock
+    environment:
+      MONGO_URI: mongodb://product-db:27017/productsdb
+ #VOLUMES (stockage persistant des données MongoDB)
+volumes:
+  user_data:     # stockage données users
+  product_data:  # stockage données products
+  order_data:    # stockage données orders
